@@ -108,7 +108,7 @@ export class GoalLine {
   }
 
   static GenerateLine(width: number, height: number, size: ExersizeSize, triesRemaining: number = 1000): GoalLine {
-    if (triesRemaining > 1000) {
+    if (triesRemaining < 0) {
       alert('Could not generate practice line after 1000 tries - make canvas larger, or pick smaller exercise size!');
       throw new Error('fail');
     }
@@ -140,10 +140,10 @@ export class GoalLine {
 
   private static LineLengthBounds(size: ExersizeSize): [number, number] {
     switch (size) {
-      case ExersizeSize.SMALL: return [200, 500];
-      case ExersizeSize.MEDIUM: return [400, 800];
+      case ExersizeSize.SMALL: return [100, 300];
+      case ExersizeSize.MEDIUM: return [250, 750];
       case ExersizeSize.LARGE: return [700, 2000];
-      default: return [200, 2000];
+      default: return [100, 2000];
     }
   }
 }

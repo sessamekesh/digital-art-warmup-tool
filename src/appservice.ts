@@ -1,6 +1,7 @@
 import { CardContent } from "@material-ui/core";
 import { Point, Stroke, StrokeScore } from "./data";
 import { ExerciseType, ExersizeSize } from "./exercisetype";
+import { GoalCircle } from "./goalcircle";
 import { GoalLine, LineSegmentScore } from "./goalline";
 
 enum PenState {
@@ -127,7 +128,7 @@ export class AppService {
   private penPos: Point = {x: 0, y: 0};
   private penPressure: number = 0;
 
-  private nextGoal: GoalLine|undefined;
+  private nextGoal: GoalLine|GoalCircle|undefined;
 
   private oldLines: OldLine[] = [];
   private currentLine: Stroke[] = [];
@@ -209,6 +210,10 @@ export class AppService {
         this.nextGoal = GoalLine.GenerateLine(
           this.ctx.canvas.width, this.ctx.canvas.height, this.exersizeSize);
         break;
+      case ExerciseType.CIRCLES:
+        this.nextGoal = GoalCircle.GenerateCircle(
+          this.ctx.canvas.width, this.ctx.canvas.height, this.exersizeSize);
+        break;
       default:
         throw new Error('Unsported');
     }
@@ -219,7 +224,7 @@ export class AppService {
   //
 
   update(dt: number) {
-    if (this.nextGoal instanceof GoalLine) {
+    if (this.nextGoal instanceof GoalLine || this.nextGoal instanceof GoalCircle) {
       this.nextGoal.update(dt);
     }
 
@@ -235,6 +240,7 @@ export class AppService {
     this.ctx.canvas.width = this.ctx.canvas.clientWidth;
     this.ctx.canvas.height = this.ctx.canvas.clientHeight;
     this.clear();
+    this.drawOldLinePoints();
     this.drawGoalObject();
     this.drawCurrentLinePoints();
     this.drawCursor();
@@ -285,42 +291,10 @@ export class AppService {
     c.stroke();
   }
 
-  private drawCurrentLinePoints() {
+  private drawOldLinePoints() {
     const c = this.ctx;
+    // Algorithm from https://www.tutorialspoint.com/Drawing-lines-with-continuously-varying-line-width-on-HTML-canvas
 
-    // Draw the current line...
-    c.lineCap = 'round';
-    let pts = this.currentLine;
-    if (pts.length > 1) {
-      c.moveTo(pts[0].x, pts[0].y);
-
-      // Algorithm from https://www.tutorialspoint.com/Drawing-lines-with-continuously-varying-line-width-on-HTML-canvas
-      for (let j = 2; j < pts.length; j++) {
-        c.lineWidth = pts[j].width;
-        c.strokeStyle = pts[j].color;
-        c.beginPath();
-
-        const p0 = pts[j - 2];
-        const p1 = pts[j - 1];
-        const p2 = pts[j];
-        const x0 = (p0.x + p1.x) / 2;
-        const x1 = (p1.x + p2.x) / 2;
-        const y0 = (p0.y + p1.y) / 2;
-        const y1 = (p1.y + p2.y) / 2;
-
-        c.moveTo(x0, y0);
-        c.quadraticCurveTo(p1.x, p1.y, x1, y1);
-        c.stroke();
-      }
-      c.beginPath();
-      c.lineWidth = pts[pts.length - 1].width;
-      c.strokeStyle = pts[pts.length - 1].color;
-      c.lineWidth = pts[pts.length - 1].width;
-      c.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
-      c.stroke();
-    }
-
-    // Draw previous lines...
     for (let i = 0; i < this.oldLines.length; i++) {
       const pts = this.oldLines[i].Points;
       c.globalAlpha = this.oldLines[i].FadeRemaining / this.oldLines[i].FadeTime;
@@ -356,6 +330,41 @@ export class AppService {
       }
     }
     c.globalAlpha = 1;
+  }
+
+  private drawCurrentLinePoints() {
+    const c = this.ctx;
+
+    c.lineCap = 'round';
+    let pts = this.currentLine;
+    if (pts.length > 1) {
+      c.moveTo(pts[0].x, pts[0].y);
+
+      // Algorithm from https://www.tutorialspoint.com/Drawing-lines-with-continuously-varying-line-width-on-HTML-canvas
+      for (let j = 2; j < pts.length; j++) {
+        c.lineWidth = pts[j].width;
+        c.strokeStyle = pts[j].color;
+        c.beginPath();
+
+        const p0 = pts[j - 2];
+        const p1 = pts[j - 1];
+        const p2 = pts[j];
+        const x0 = (p0.x + p1.x) / 2;
+        const x1 = (p1.x + p2.x) / 2;
+        const y0 = (p0.y + p1.y) / 2;
+        const y1 = (p1.y + p2.y) / 2;
+
+        c.moveTo(x0, y0);
+        c.quadraticCurveTo(p1.x, p1.y, x1, y1);
+        c.stroke();
+      }
+      c.beginPath();
+      c.lineWidth = pts[pts.length - 1].width;
+      c.strokeStyle = pts[pts.length - 1].color;
+      c.lineWidth = pts[pts.length - 1].width;
+      c.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
+      c.stroke();
+    }
   }
 
   private drawMessages() {
@@ -404,18 +413,43 @@ export class AppService {
       c.setLineDash(dashData.dash);
       c.lineTo(dashData.x1, dashData.y1);
       c.stroke();
+    } else if (this.nextGoal instanceof GoalCircle) {
+      // Start position
+      c.strokeStyle = HexString(BLACK);
+      c.lineWidth = 2;
+      c.beginPath();
+      c.moveTo(this.nextGoal.Origin.x + Math.sin(this.nextGoal.StartAngle) * this.nextGoal.Radius + 3,
+              this.nextGoal.Origin.y + Math.cos(this.nextGoal.StartAngle) * this.nextGoal.Radius);
+      c.arc(
+        this.nextGoal.Origin.x + Math.sin(this.nextGoal.StartAngle) * this.nextGoal.Radius,
+        this.nextGoal.Origin.y + Math.cos(this.nextGoal.StartAngle) * this.nextGoal.Radius,
+        3,
+        0, 2 * Math.PI);
+      c.stroke();
+
+      // Surrounding: dotted line:
+      c.lineWidth = 2;
+      c.beginPath();
+      c.moveTo(
+        this.nextGoal.Origin.x + Math.cos(this.nextGoal.StartAngle + this.nextGoal.TOffset) * this.nextGoal.Radius,
+        this.nextGoal.Origin.y + Math.sin(this.nextGoal.StartAngle + this.nextGoal.TOffset) * this.nextGoal.Radius);
+      c.setLineDash([10, 10]);
+      c.arc(this.nextGoal.Origin.x, this.nextGoal.Origin.y, this.nextGoal.Radius, this.nextGoal.StartAngle + this.nextGoal.TOffset,
+        this.nextGoal.StartAngle + this.nextGoal.TOffset + 0.01, true);
+      c.stroke();
     }
 
     c.setLineDash([]);
   }
 
   private getNewPointColorAndScore(pt: Point): [string, StrokeScore] {
-    if (!this.isRunning) {
+    if (!this.isRunning || this.currentLine.length < 3) {
       return [HexString(GREY), StrokeScore.PERFECT];
     }
 
-    if (this.nextGoal instanceof GoalLine && this.currentLine.length > 0) {
-      const lastPt = this.currentLine[this.currentLine.length - 1];
+    const lastPt = this.currentLine[this.currentLine.length - 1];
+
+    if (this.nextGoal instanceof GoalLine) {
       const score = this.nextGoal.scoreSegment({
         startX: lastPt.x,
         startY: lastPt.y,
@@ -433,6 +467,23 @@ export class AppService {
         return [HexString(LerpColor(GREEN, ORANGE, (score.MaxDistToLine - 2) / 23)), StrokeScore.GOOD];
       } else if (score.MaxDistToLine < 50) {
         return [HexString(LerpColor(ORANGE, RED, (score.MaxDistToLine - 25) / 25)), StrokeScore.OKAY];
+      } else {
+        return [HexString(RED), StrokeScore.MISS];
+      }
+    } else if (this.nextGoal instanceof GoalCircle) {
+      const dist = this.nextGoal.scoreSegment({
+        startX: lastPt.x,
+        startY: lastPt.y,
+        endX: pt.x,
+        endY: pt.y,
+      });
+
+      if (dist.MaxDistanceToLine < 5) {
+        return [HexString(GREEN), StrokeScore.PERFECT];
+      } else if (dist.MaxDistanceToLine < 30) {
+        return [HexString(LerpColor(GREEN, ORANGE, (dist.MaxDistanceToLine - 5) / 25)), StrokeScore.GOOD];
+      } else if (dist.MaxDistanceToLine < 60) {
+        return [HexString(LerpColor(ORANGE, RED, (dist.MaxDistanceToLine - 30) / 30)), StrokeScore.OKAY];
       } else {
         return [HexString(RED), StrokeScore.MISS];
       }
@@ -468,6 +519,24 @@ export class AppService {
         return StrokeScore.GOOD;
       }
       return StrokeScore.PERFECT;
+    } else if (this.nextGoal instanceof GoalCircle) {
+      let accuracy = StrokeScore.MISS;
+
+      const missPCt = strokes.filter(s=>s.score===StrokeScore.MISS).length / strokes.length;
+      const okayPct = strokes.filter(s=>s.score===StrokeScore.OKAY).length / strokes.length;
+      const goodPCt = strokes.filter(s=>s.score===StrokeScore.GOOD).length / strokes.length;
+
+      if (missPCt > 0.1) {
+        accuracy = StrokeScore.MISS;
+      } else if (missPCt > 0.02 || okayPct > 0.1) {
+        accuracy = StrokeScore.OKAY;
+      } else if (okayPct > 0.02 || goodPCt > 0.1) {
+        accuracy = StrokeScore.GOOD;
+      } else {
+        accuracy = StrokeScore.PERFECT;
+      }
+
+      return accuracy;
     }
 
     return StrokeScore.MISS;

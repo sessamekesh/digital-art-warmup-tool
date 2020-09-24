@@ -13,6 +13,7 @@ interface State {
     timerExecutionId: number,
     timerTime: number,
     newTimerTime: number,
+    isAppRunning: boolean,
 }
 
 function toPoint(e: React.PointerEvent<HTMLCanvasElement>): Point {
@@ -33,6 +34,7 @@ export class App extends React.Component<{}, State> {
             timerExecutionId: 0,
             timerTime: 0,
             newTimerTime: 60,
+            isAppRunning: false,
         };
     }
 
@@ -94,6 +96,7 @@ export class App extends React.Component<{}, State> {
                         onComplete={() => {
                             this.setState({
                                 isRunning: false,
+                                isAppRunning: false,
                             });
                             this.app_?.stopExercies();
                             return [false, 0];
@@ -126,12 +129,11 @@ export class App extends React.Component<{}, State> {
                     onChange={(change: React.ChangeEvent<{value: ExerciseType}>) => {
                         this.setState({
                             exerciseType: change.target.value,
-                            isRunning: false,
                             timerExecutionId: this.state.timerExecutionId+1,
                         });
                     }}>
                     <MenuItem value={ExerciseType.LINES}>Lines</MenuItem>
-                    <MenuItem value={ExerciseType.CIRCLES} disabled>Circles</MenuItem>
+                    <MenuItem value={ExerciseType.CIRCLES}>Circles</MenuItem>
                     <MenuItem value={ExerciseType.OVALS} disabled>Ovals</MenuItem>
                 </Select>
                 <FormHelperText>Exercise</FormHelperText>
@@ -176,6 +178,7 @@ export class App extends React.Component<{}, State> {
                     this.app_.clearDrawings();
                     this.setState({
                         isRunning: true,
+                        isAppRunning: true,
                         timerTime: this.state.newTimerTime,
                         timerExecutionId: this.state.timerExecutionId+1,
                         isFirstPlay: false,
@@ -185,6 +188,7 @@ export class App extends React.Component<{}, State> {
                 <div style={{height: '8px'}} />
                 {(()=>{
                     if (this.state.isFirstPlay && !this.state.isRunning) return null;
+                    if (!this.state.isAppRunning) return null;
                     if (this.state.isRunning) {
                         return <Button color="secondary" variant="outlined" onClick={() => {
                             this.setState({
@@ -206,11 +210,7 @@ export class App extends React.Component<{}, State> {
                 <div style={{border: '1px solid black', margin: '20px 0'}} />
                 <p>Pick an <b>exercise</b> and <b>practice time</b> above, and click <b>start</b> to
                 begin practicing.</p>
-                <ul>
-                    <li><b>Lines</b> Draw straight lines between random points</li>
-                    <li><b>Circles</b> Draw the best circles you can</li>
-                    <li><b>Ovals</b> Draw them tricky perspective circles: ovals!</li>
-                </ul>
+                <p>Take your time - I'm not keeping score!</p>
             </div>
         </div>;
     }
